@@ -238,9 +238,14 @@ You can access to the app using the port `5000` on your localhost, and using the
 If you want to create an `ADMIN` user manually, you need to run the following commands:
 
 ```sh
-
-
+docker exec -it your_container_name bash
+psql -U irmin -d crud
+<<Prompt the password: irmin>>
+UPDATE Users SET role = 0 WHERE email = <your_email>
+\q
+exit
 ```
+Where the email is the email of the user that you want to grant the `ADMIN` role.
 
 ## Explanation
 
