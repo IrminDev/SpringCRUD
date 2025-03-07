@@ -43,10 +43,6 @@ public class UserController {
     @GetMapping("/{id}")
     public ResponseEntity<UserListResponse> getUser(@PathVariable Long id,
         @RequestHeader("Authorization") String token) {
-        if(token == null) {
-            return ResponseEntity.badRequest().body(new UserListResponse.InvalidTokenResponse("Invalid token"));
-        }
-
         token = token.substring(7);
 
         if(jwtService.extractClaim(token, claims -> claims.get("id", Long.class)) == id
@@ -91,16 +87,6 @@ public class UserController {
 
     @GetMapping("/all")
     public ResponseEntity<UserListResponse> getAllUsers(@RequestHeader("Authorization") String token) {
-        if(token == null) {
-            return ResponseEntity.badRequest().body(new UserListResponse.InvalidTokenResponse("Invalid token"));
-        }
-        
-        token = token.substring(7);
-
-        if(Role.valueOf(jwtService.extractClaim(token, claims -> claims.get("role", String.class))) != Role.ADMIN) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new UserListResponse.UnallowedMethodResponse("Unauthorized"));
-        }
-
         List<UserDTO> users = userService.getAllUsers();
         return ResponseEntity.ok(new UserListResponse.Success(users));
     }
@@ -108,16 +94,6 @@ public class UserController {
     @DeleteMapping("/{id}")
     public ResponseEntity<UserListResponse> deleteUser(@PathVariable Long id,
         @RequestHeader("Authorization") String token) {
-        if(token == null) {
-            return ResponseEntity.badRequest().body(new UserListResponse.InvalidTokenResponse("Invalid token"));
-        }
-        
-        token = token.substring(7);
-
-        if(Role.valueOf(jwtService.extractClaim(token, claims -> claims.get("role", String.class))) != Role.ADMIN) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new UserListResponse.UnallowedMethodResponse("Unauthorized"));
-        }
-
         userService.deleteUser(id);
         return ResponseEntity.ok(new UserListResponse("Success"));
     }
@@ -126,16 +102,6 @@ public class UserController {
     public ResponseEntity<UserUpdateResponse> updateUser(@PathVariable Long id,
     @RequestBody UserChange userChange,
     @RequestHeader("Authorization") String token) {
-        if(token == null) {
-            return ResponseEntity.badRequest().body(new UserUpdateResponse.InvalidTokenResponse("Invalid token"));
-        }
-        
-        token = token.substring(7);
-
-        if(Role.valueOf(jwtService.extractClaim(token, claims -> claims.get("role", String.class))) != Role.ADMIN) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new UserUpdateResponse.UnallowedMethodResponse("Unauthorized"));
-        }
-
         UserDTO user = userService.updateUser(id, userChange);
         if (user == null) {
             return ResponseEntity.status(HttpStatus.GONE).body(new UserUpdateResponse.UserNotFoundResponse("User not found"));

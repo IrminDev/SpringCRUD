@@ -1,21 +1,84 @@
 package com.github.irmindev.crud.config;
 
+import java.util.List;
+
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.AuthenticationProvider;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+import com.github.irmindev.crud.security.JWTAuthenticationFilter;
+import com.github.irmindev.crud.security.UserDetailsServiceImplementation;
 
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
+    private final UserDetailsServiceImplementation userDetailsService;
+    private final JWTAuthenticationFilter jwtAuthenticationFilter;
+
+    @Autowired
+    public SecurityConfig(UserDetailsServiceImplementation userDetailsService, JWTAuthenticationFilter jwtAuthenticationFilter) {
+        this.userDetailsService = userDetailsService;
+        this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+    }
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         return http
-            .csrf(csrf -> csrf.disable()) // Deshabilitar CSRF
+            .csrf(AbstractHttpConfigurer::disable) // Deshabilitar CSRF
+            .cors(cors -> cors.configurationSource(
+                request -> {
+                    var corsConfig = new org.springframework.web.cors.CorsConfiguration();
+                    corsConfig.addAllowedOriginPattern("*");
+                    corsConfig.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE"));
+                    corsConfig.setAllowedHeaders(List.of("*"));
+                    corsConfig.setAllowCredentials(true);
+                    return corsConfig;
+                }
+            ))
             .authorizeHttpRequests(auth -> auth
-                .anyRequest().permitAll() // Permitir todas las solicitudes sin autenticación
+                .requestMatchers(HttpMethod.POST, "/api/user/register", "/api/user/login").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/user/all").hasAuthority("ADMIN")
+                .requestMatchers(HttpMethod.DELETE, "/api/user/**").hasAuthority("ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/api/user/**").hasAuthority("ADMIN")
+                .anyRequest().authenticated()
             )
+            .sessionManagement(manager -> manager
+                .sessionCreationPolicy(org.springframework.security.config.http.SessionCreationPolicy.STATELESS)
+            )
+            .authenticationProvider(authenticationProvider())
+            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
             .build();
+    }
+    
+    @Bean
+    public AuthenticationManager authenticationManager(HttpSecurity http) throws Exception {
+        AuthenticationManagerBuilder authBuilder = http.getSharedObject(AuthenticationManagerBuilder.class);
+        authBuilder.userDetailsService(userDetailsService).passwordEncoder(passwordEncoder());
+        return authBuilder.build();
+    }
+
+    @Bean
+    public AuthenticationProvider authenticationProvider(){
+        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
+        provider.setUserDetailsService(userDetailsService);
+        provider.setPasswordEncoder(passwordEncoder());
+        return provider;
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder(){
+        return new BCryptPasswordEncoder();
     }
 }

@@ -12,6 +12,7 @@ import com.github.irmindev.crud.model.entity.User;
 import com.github.irmindev.crud.model.enums.Role;
 import com.github.irmindev.crud.model.exception.AlreadyUsedEmailException;
 import com.github.irmindev.crud.model.exception.EntityNotFoundException;
+import com.github.irmindev.crud.model.exception.IncorrectCredentialsException;
 import com.github.irmindev.crud.model.request.UserChange;
 import com.github.irmindev.crud.model.request.UserCreate;
 import com.github.irmindev.crud.repository.UserRepository;
@@ -26,12 +27,13 @@ public class UserService {
         this.userRepository = userRepository;
     }
 
-    public UserDTO getUserByEmail(String email) {
-        return UserMapper.toDTO(userRepository.findByEmail(email));
+    public UserDTO getUserByEmail(String email) throws EntityNotFoundException {
+        User user = userRepository.findByEmail(email).orElseThrow(() -> new EntityNotFoundException());
+        return UserMapper.toDTO(user);
     }
 
-    public UserDTO getUserById(Long id) {
-        return UserMapper.toDTO(userRepository.findById(id).orElse(null));
+    public UserDTO getUserById(Long id) throws EntityNotFoundException {
+        return UserMapper.toDTO(userRepository.findById(id).orElseThrow(() -> new EntityNotFoundException()));
     }
 
     public UserDTO createUser(UserCreate userCreate) throws AlreadyUsedEmailException {
@@ -41,19 +43,19 @@ public class UserService {
         user.setEmail(userCreate.getEmail());
         user.setPassword(hashedPassword);
         user.setRole(Role.USER);
-        if(userRepository.findByEmail(userCreate.getEmail()) != null) {
+        if(userRepository.findByEmail(userCreate.getEmail()).orElse(null) != null) {
             throw new AlreadyUsedEmailException();
         }
 
         return UserMapper.toDTO(userRepository.save(user));
     }
 
-    public UserDTO updateUser(Long id, UserChange userCreate) {
+    public UserDTO updateUser(Long id, UserChange userCreate) throws EntityNotFoundException, AlreadyUsedEmailException {
         User user = userRepository.findById(id).orElse(null);
         if (user == null) {
             throw new EntityNotFoundException();
         }
-        User userWithSameEmail = userRepository.findByEmail(userCreate.getEmail());
+        User userWithSameEmail = userRepository.findByEmail(userCreate.getEmail()).orElseThrow(() -> new EntityNotFoundException());
         if (userWithSameEmail != null && !userWithSameEmail.getId().equals(id)) {
             throw new AlreadyUsedEmailException();
         }
@@ -63,17 +65,16 @@ public class UserService {
     }
 
     public void deleteUser(Long id) throws EntityNotFoundException {
-        User user = userRepository.findById(id).orElse(null);
-        if (user == null) {
-            throw new EntityNotFoundException();
-        }
+        userRepository.findById(id).orElseThrow(() -> new EntityNotFoundException());
         userRepository.deleteById(id);
     }
 
-    public UserDTO login(String email, String password) {
-        User user = userRepository.findByEmail(email);
-        if (user == null || !bCryptPasswordEncoder.matches(password, user.getPassword())) {
-            return null;
+    public UserDTO login(String email, String password) throws EntityNotFoundException,
+        IncorrectCredentialsException    
+    {
+        User user = userRepository.findByEmail(email).orElseThrow(() -> new EntityNotFoundException());
+        if (!bCryptPasswordEncoder.matches(password, user.getPassword())) {
+            throw new IncorrectCredentialsException();
         }
         return UserMapper.toDTO(user);
     }
