@@ -1,9 +1,15 @@
 import React from 'react';
 import { FiBook, FiGithub, FiTwitter, FiInstagram } from 'react-icons/fi';
 
-const Footer: React.FC = () => {
+interface FooterProps {
+  darkMode: boolean;
+}
+
+const Footer: React.FC<FooterProps> = ({ darkMode }) => {
   return (
-    <footer className="bg-gray-900 text-gray-300">
+    <footer className={`transition-colors duration-500 ${
+      darkMode ? 'bg-slate-950 text-slate-300' : 'bg-gray-900 text-gray-300'
+    }`}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           {/* Logo Section */}
@@ -12,7 +18,9 @@ const Footer: React.FC = () => {
               <FiBook className="h-8 w-8 mr-2 text-indigo-400" />
               <span className="text-xl font-bold text-white">BookNexus</span>
             </div>
-            <p className="mt-4 text-sm text-gray-400">
+            <p className={`mt-4 text-sm ${
+              darkMode ? 'text-slate-400' : 'text-gray-400'
+            }`}>
               Discover your next favorite read with personalized book recommendations.
             </p>
             <div className="flex space-x-4 mt-6">
@@ -20,7 +28,9 @@ const Footer: React.FC = () => {
                 <a 
                   key={index} 
                   href="#" 
-                  className="text-gray-400 hover:text-white transition-colors"
+                  className={`transition-colors ${
+                    darkMode ? 'text-slate-400 hover:text-white' : 'text-gray-400 hover:text-white'
+                  }`}
                 >
                   <Icon className="h-6 w-6" />
                 </a>
@@ -50,7 +60,9 @@ const Footer: React.FC = () => {
                   <li key={linkIndex}>
                     <a 
                       href="#" 
-                      className="text-gray-400 hover:text-indigo-300 text-sm transition-colors"
+                      className={`text-sm transition-colors ${
+                        darkMode ? 'text-slate-400 hover:text-indigo-300' : 'text-gray-400 hover:text-indigo-300'
+                      }`}
                     >
                       {link}
                     </a>
@@ -61,12 +73,22 @@ const Footer: React.FC = () => {
           ))}
         </div>
         
-        <div className="border-t border-gray-800 mt-12 pt-8 flex flex-col md:flex-row justify-between items-center">
-          <p className="text-sm text-gray-500">© 2025 BookNexus. All rights reserved.</p>
+        <div className={`border-t mt-12 pt-8 flex flex-col md:flex-row justify-between items-center ${
+          darkMode ? 'border-slate-800' : 'border-gray-800'
+        }`}>
+          <p className={`text-sm ${
+            darkMode ? 'text-slate-500' : 'text-gray-500'
+          }`}>© 2025 BookNexus. All rights reserved.</p>
           <div className="flex space-x-6 mt-4 md:mt-0">
-            <a href="#" className="text-sm text-gray-500 hover:text-gray-300">Terms of Service</a>
-            <a href="#" className="text-sm text-gray-500 hover:text-gray-300">Privacy Policy</a>
-            <a href="#" className="text-sm text-gray-500 hover:text-gray-300">Cookie Settings</a>
+            <a href="#" className={`text-sm transition-colors ${
+              darkMode ? 'text-slate-500 hover:text-slate-300' : 'text-gray-500 hover:text-gray-300'
+            }`}>Terms of Service</a>
+            <a href="#" className={`text-sm transition-colors ${
+              darkMode ? 'text-slate-500 hover:text-slate-300' : 'text-gray-500 hover:text-gray-300'
+            }`}>Privacy Policy</a>
+            <a href="#" className={`text-sm transition-colors ${
+              darkMode ? 'text-slate-500 hover:text-slate-300' : 'text-gray-500 hover:text-gray-300'
+            }`}>Cookie Settings</a>
           </div>
         </div>
       </div>
