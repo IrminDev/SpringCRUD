@@ -1,4 +1,4 @@
-# Homework 3
+# Nexus Book
 
 In this homework you can find two projects, the backend and the frontend, each one has their own purpose.
 
@@ -356,30 +356,18 @@ Finally, we create a docker-compose file that declares all the needed data to bu
 
 When we run docker-compose up --build, we do the order of first build the images for the deployments that has this property, and then, create the containers.
 
-## Proofs
+## Screenshots
 
 In this section, I'll show you the screenshots of the app running.
 
-### Docker compose up --build
-![Docker compose up](./proofs/composeup.png)
+![Index page](./assets/index.png)
 
-### Logs of the containers
-![Docker compose up](./proofs/logs.png)
+![Sign Up form](./assets/signup.png)
 
-### Login Form
-![Docker compose up](./proofs/login.png)
+![Search](./assets/search.png)
 
-### Sign up Form
-![Docker compose up](./proofs/register.png)
+![Book](./assets/book.png)
 
-### User Profile
-![Docker compose up](./proofs/userProfile.png)
+![Profile](./assets/profile.png)
 
-### Admin dashboard
-![Docker compose up](./proofs/adminDashboard.png)
-
-### Edit User
-![Docker compose up](./proofs/editUser.png)
-
-### User deleted
-![Docker compose up](./proofs/userDeleted.png)
+![Dashboard](./assets/dashboard.png)
