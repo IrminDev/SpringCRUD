@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { Lock, User, Book } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import loginService from "../../services/login.service";
-import LoginResponse from "../../model/response/LoginResponse";
+import LoginResponse from "../../model/response/auth/LoginResponse";
 import ErrorResponse from "../../model/response/ErrorResponse";
 
 export default function LoginForm() {

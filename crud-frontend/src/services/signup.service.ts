@@ -1,5 +1,5 @@
 import axios from 'axios';
-import SignUpResponse from '../model/response/SignUpResponse';
+import SignUpResponse from '../model/response/auth/SignUpResponse';
 import SignUpRequest from '../model/request/SignUpRequest';
 
 const API_URL = import.meta.env.VITE_API_URL;

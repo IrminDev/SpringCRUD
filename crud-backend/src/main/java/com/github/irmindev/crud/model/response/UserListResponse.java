@@ -2,6 +2,8 @@ package com.github.irmindev.crud.model.response;
 
 import java.util.List;
 
+import org.springframework.data.domain.Page;
+
 import com.github.irmindev.crud.model.dto.UserDTO;
 import com.github.irmindev.crud.model.exception.InvalidTokenException;
 import com.github.irmindev.crud.model.exception.UnallowedMethodException;
@@ -24,14 +26,14 @@ public sealed class UserListResponse permits
 
 
     public static final class Success extends UserListResponse {
-        private final List<UserDTO> users;
+        private final Page<UserDTO> users;
 
-        public Success(List<UserDTO> users) {
+        public Success(Page<UserDTO> users) {
             super("Success");
             this.users = users;
         }
 
-        public List<UserDTO> getUsers() {
+        public Page<UserDTO> getUsers() {
             return users;
         }
     }

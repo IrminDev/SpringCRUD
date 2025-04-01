@@ -1,6 +1,6 @@
 import axios from 'axios';
 import UpdateRequest from '../model/request/UpdateRequest';
-import UpdateResponse from '../model/response/UpdateResponse';
+import UpdateResponse from '../model/response/user/UpdateResponse';
 import ErrorResponse from '../model/response/ErrorResponse';
 
 const API_URL = import.meta.env.VITE_API_URL;

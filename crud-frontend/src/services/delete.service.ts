@@ -1,5 +1,5 @@
 import axios from "axios";
-import DeleteResponse from "../model/response/DeleteResponse";
+import DeleteResponse from "../model/response/user/DeleteResponse";
 import ErrorResponse from "../model/response/ErrorResponse";
 const API_URL = import.meta.env.VITE_API_URL;
 

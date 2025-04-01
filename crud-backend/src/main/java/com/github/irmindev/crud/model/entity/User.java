@@ -1,5 +1,6 @@
 package com.github.irmindev.crud.model.entity;
 
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 
@@ -38,7 +39,11 @@ public class User implements UserDetails {
     @Enumerated(EnumType.ORDINAL)
     private Role role;
 
+    @Column(name = "created_at", nullable = false)
+    private LocalDateTime createdAt;
+
     public User() {
+        this.createdAt = LocalDateTime.now();
     }
 
     public User(String name, String email, String password, Role role) {
@@ -46,6 +51,11 @@ public class User implements UserDetails {
         this.email = email;
         this.password = password;
         this.role = role;
+        this.createdAt = LocalDateTime.now();
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
     }
 
     public Long getId() {

@@ -1,6 +1,6 @@
 import axios from "axios";
 import LoginRequest from "../model/request/LoginRequest";
-import LoginResponse from "../model/response/LoginResponse";
+import LoginResponse from "../model/response/auth/LoginResponse";
 import ErrorResponse from "../model/response/ErrorResponse";
 
 const API_URL = import.meta.env.VITE_API_URL;
