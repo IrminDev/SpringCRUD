@@ -7,7 +7,7 @@ const API_URL = import.meta.env.VITE_API_URL;
 
 async function listUser(token: string): Promise<ListUserResponse> {
     try {
-        const response = await axios.get(`${API_URL}all`, {
+        const response = await axios.get(`${API_URL}user/all`, {
             headers: {
                 Authorization: `Bearer ${token}`
             }
@@ -27,7 +27,7 @@ async function listUser(token: string): Promise<ListUserResponse> {
 
 async function getUser(id: number, token: string): Promise<UserResponse> {
     try {
-        const response = await axios.get(`${API_URL}${id}`, {
+        const response = await axios.get(`${API_URL}user/${id}`, {
             headers: {
                 Authorization: `Bearer ${token}`
             }

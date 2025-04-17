@@ -5,7 +5,7 @@ import SignUpRequest from '../model/request/SignUpRequest';
 const API_URL = import.meta.env.VITE_API_URL;
 
 async function signUp(signUpRequest: SignUpRequest): Promise<SignUpResponse>{
-    const response = await axios.post(`${API_URL}register`, signUpRequest);
+    const response = await axios.post(`${API_URL}user/register`, signUpRequest);
     return response.data;
 }
 

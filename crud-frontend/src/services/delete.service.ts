@@ -5,7 +5,7 @@ const API_URL = import.meta.env.VITE_API_URL;
 
 async function deleteUser(id: number, token: string): Promise<DeleteResponse> {
   try {
-    const response = await axios.delete(`${API_URL}${id}`, {
+    const response = await axios.delete(`${API_URL}user/${id}`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },

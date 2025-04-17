@@ -7,7 +7,7 @@ const API_URL = import.meta.env.VITE_API_URL;
 
 async function updateUser(id: number, updateRequest: UpdateRequest, token: string): Promise<UpdateResponse> {
     try {
-        const response = await axios.put(`${API_URL}${id}`, updateRequest, {
+        const response = await axios.put(`${API_URL}user/${id}`, updateRequest, {
             headers: {
                 Authorization: `Bearer ${token}`
             }

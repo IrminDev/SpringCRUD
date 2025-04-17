@@ -1,11 +1,15 @@
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { FiUser, FiMail, FiBookOpen, FiEdit, FiHeart, FiBookmark, FiBook, FiList, FiLogOut } from "react-icons/fi";
+import { FiUser, FiMail, FiBookOpen, FiEdit, FiHeart, FiBookmark, FiBook, FiList, FiLogOut, FiLoader, FiArrowRight, FiBookOpen as FiRead, FiSearch } from "react-icons/fi";
 import User from "../model/User";
+import { Book } from "../model/Book";
 import listService from "../services/list.service";
+import favoriteService from "../services/favorite.service";
+import bookService from "../services/book.service";
 import UserResponse from "../model/response/user/UserResponse";
 import ErrorResponse from "../model/response/ErrorResponse";
+import coverPlaceholder from '../assets/cover.jpg';
 
 interface UserProfileProps {
   darkMode: boolean;
@@ -18,13 +22,20 @@ const UserProfile: React.FC<UserProfileProps> = ({ darkMode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [favorites, setFavorites] = useState<Book[]>([]);
+  const [favoritesLoading, setFavoritesLoading] = useState(false);
+  const [favoriteAuthors, setFavoriteAuthors] = useState<string[]>([]);
+  const [favoriteGenres, setFavoriteGenres] = useState<string[]>([]);
+  const [authorRecommendations, setAuthorRecommendations] = useState<Book[]>([]);
+  const [genreRecommendations, setGenreRecommendations] = useState<Book[]>([]);
+  const [recommendationsLoading, setRecommendationsLoading] = useState(false);
   
-  // Mock data for user statistics
-  const [stats] = useState({
-    booksRead: 12,
-    booksInProgress: 3,
-    wishlist: 24,
-    reviews: 8
+  // User stats - will be updated based on favorites
+  const [stats, setStats] = useState({
+    booksRead: 0,
+    booksInProgress: 0,
+    wishlist: 0,
+    reviews: 0
   });
 
   useEffect(() => {
@@ -41,6 +52,9 @@ const UserProfile: React.FC<UserProfileProps> = ({ darkMode }) => {
         setLoading(true);
         const response: UserResponse = await listService.getUser(userLogged.id, token);
         setUser(response.user);
+        
+        // After getting user, fetch their favorites
+        await fetchUserFavorites();
       } catch (error) {
         const err = error as ErrorResponse;
         setError(err.message);
@@ -51,7 +65,140 @@ const UserProfile: React.FC<UserProfileProps> = ({ darkMode }) => {
     };
 
     fetchUserProfile();
-  }, []);
+  }, [userLogged.id, token, navigate]);
+
+// Fetch user's favorites, authors and genres
+  const fetchUserFavorites = async () => {
+      try {
+        setFavoritesLoading(true);
+        
+        // Get favorites from server (limited data)
+        const favoritesResponse = await favoriteService.getFavorites(token);
+        
+        if (favoritesResponse.books && favoritesResponse.books.length > 0) {
+          // Update stats based on number of favorites
+          setStats(prev => ({
+            ...prev,
+            booksRead: favoritesResponse.books.length,
+            wishlist: Math.floor(favoritesResponse.books.length * 0.5) // Just a mock calculation
+          }));
+          
+          // Fetch complete book data for each favorite
+          const favoriteBooks: Book[] = [];
+          
+          // Process favorites in batches to avoid too many simultaneous requests
+          const batchSize = 3;
+          const batchCount = Math.ceil(favoritesResponse.books.length / batchSize);
+          
+          for (let i = 0; i < batchCount; i++) {
+            const batch = favoritesResponse.books.slice(i * batchSize, (i + 1) * batchSize);
+            const batchPromises = batch.map(async (favBook) => {
+              try {
+                // Convert the numeric ID to OpenLibrary format if needed
+                const bookId = favBook.id.toString().includes('/works/') 
+                  ? favBook.id.toString() 
+                  : `/works/${favBook.id}`;
+                  
+                // Fetch complete book details
+                const bookDetail = await bookService.getBookDetails(bookId.replace('/works/', ''));
+                
+                // If the book doesn't have a genre, use the one from the favorite record
+                if (!bookDetail.genre || bookDetail.genre === 'Unknown') {
+                  bookDetail.genre = favBook.genre;
+                }
+                
+                return bookDetail;
+              } catch (error) {
+                console.error(`Error fetching details for book ${favBook.id}:`, error);
+                
+                // If API fetch fails, create a Book object from the favorite data we have
+                return {
+                  id: favBook.id.toString(),
+                  title: favBook.title,
+                  author: favBook.author,
+                  genre: favBook.genre,
+                  coverImage: '', // Will use the placeholder
+                  publishYear: 0,
+                  description: 'No description available',
+                  rating: 0 // Default rating
+                };
+              }
+            });
+            
+            // Wait for the current batch to complete before moving to the next
+            const batchResults = await Promise.all(batchPromises);
+            favoriteBooks.push(...batchResults);
+          }
+          
+          setFavorites(favoriteBooks);
+        }
+        
+        // Get favorite authors
+        const authorsResponse = await favoriteService.getFavoriteAuthors(token);
+        if (authorsResponse.authors && authorsResponse.authors.length > 0) {
+          setFavoriteAuthors(authorsResponse.authors);
+          
+          // Get recommendations based on favorite author
+          if (authorsResponse.authors.length > 0) {
+            fetchAuthorRecommendations(authorsResponse.authors[0]);
+          }
+        }
+        
+        // Get favorite genres
+        const genresResponse = await favoriteService.getFavoriteGenres(token);
+        if (genresResponse.genres && genresResponse.genres.length > 0) {
+          setFavoriteGenres(genresResponse.genres);
+          
+          // Get recommendations based on favorite genre
+          if (genresResponse.genres.length > 0) {
+            fetchGenreRecommendations(genresResponse.genres[0]);
+          }
+        }
+        
+      } catch (error) {
+        console.error("Error fetching user favorites:", error);
+      } finally {
+        setFavoritesLoading(false);
+      }
+    };
+    
+  // Fetch book recommendations by author
+  const fetchAuthorRecommendations = async (author: string) => {
+    try {
+      setRecommendationsLoading(true);
+      const result = await bookService.searchBooksByFilter({ author }, 1);
+      
+      // Filter out books that are already in favorites and limit to 5
+      const filteredRecommendations = result.books
+        .filter(book => !favorites.some(fav => fav.id === book.id))
+        .slice(0, 5);
+        
+      setAuthorRecommendations(filteredRecommendations);
+    } catch (error) {
+      console.error("Error fetching author recommendations:", error);
+    } finally {
+      setRecommendationsLoading(false);
+    }
+  };
+  
+  // Fetch book recommendations by genre
+  const fetchGenreRecommendations = async (genre: string) => {
+    try {
+      setRecommendationsLoading(true);
+      const result = await bookService.searchBooksByFilter({ subject: genre }, 1);
+      
+      // Filter out books that are already in favorites and limit to 5
+      const filteredRecommendations = result.books
+        .filter(book => !favorites.some(fav => fav.id === book.id))
+        .slice(0, 5);
+        
+      setGenreRecommendations(filteredRecommendations);
+    } catch (error) {
+      console.error("Error fetching genre recommendations:", error);
+    } finally {
+      setRecommendationsLoading(false);
+    }
+  };
 
   const handleLogout = () => {
     localStorage.removeItem("user");
@@ -214,6 +361,53 @@ const UserProfile: React.FC<UserProfileProps> = ({ darkMode }) => {
                 </div>
               </div>
 
+              {/* Favorite Genres & Authors Badges */}
+              {(favoriteGenres.length > 0 || favoriteAuthors.length > 0) && (
+                <div className={`mt-6 pt-6 border-t ${
+                  darkMode ? 'border-slate-700' : 'border-gray-200'
+                }`}>
+                  {favoriteGenres.length > 0 && (
+                    <div className="mb-4">
+                      <h3 className={`text-sm font-medium mb-2 ${
+                        darkMode ? 'text-slate-300' : 'text-gray-700'
+                      }`}>Favorite Genres</h3>
+                      <div className="flex flex-wrap gap-2">
+                        {favoriteGenres.map((genre, index) => (
+                          <span 
+                            key={index}
+                            className={`text-xs px-2 py-1 rounded-full ${
+                              darkMode ? 'bg-purple-900/50 text-purple-300' : 'bg-purple-100 text-purple-800'
+                            }`}
+                          >
+                            {genre}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {favoriteAuthors.length > 0 && (
+                    <div>
+                      <h3 className={`text-sm font-medium mb-2 ${
+                        darkMode ? 'text-slate-300' : 'text-gray-700'
+                      }`}>Favorite Authors</h3>
+                      <div className="flex flex-wrap gap-2">
+                        {favoriteAuthors.map((author, index) => (
+                          <span 
+                            key={index}
+                            className={`text-xs px-2 py-1 rounded-full ${
+                              darkMode ? 'bg-indigo-900/50 text-indigo-300' : 'bg-indigo-100 text-indigo-800'
+                            }`}
+                          >
+                            {author}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="mt-6">
                 <button 
                   onClick={handleLogout} 
@@ -230,112 +424,333 @@ const UserProfile: React.FC<UserProfileProps> = ({ darkMode }) => {
             </div>
           </motion.div>
 
-          {/* Reading Activity and Bookshelves */}
+          {/* Favorite Books, Recommendations, and Activity */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.2 }}
-            className={`col-span-1 lg:col-span-2 rounded-xl shadow-lg overflow-hidden ${
-              darkMode ? 'bg-slate-800' : 'bg-white'
-            }`}
+            className={`col-span-1 lg:col-span-2 space-y-8`}
           >
-            <div className={`px-6 py-4 border-b ${
-              darkMode ? 'border-slate-700' : 'border-gray-200'
+            {/* Favorite Books Section */}
+            <div className={`rounded-xl shadow-lg overflow-hidden ${
+              darkMode ? 'bg-slate-800' : 'bg-white'
             }`}>
-              <h3 className={`text-lg font-medium ${
-                darkMode ? 'text-white' : 'text-gray-900'
+              <div className={`px-6 py-4 border-b ${
+                darkMode ? 'border-slate-700' : 'border-gray-200'
               }`}>
-                My Bookshelves
-              </h3>
-            </div>
-
-            <div className="p-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-                {[
-                  { icon: <FiBookOpen className="h-5 w-5" />, title: "Currently Reading", count: stats.booksInProgress },
-                  { icon: <FiBook className="h-5 w-5" />, title: "Completed Books", count: stats.booksRead },
-                  { icon: <FiBookmark className="h-5 w-5" />, title: "Want to Read", count: stats.wishlist },
-                  { icon: <FiList className="h-5 w-5" />, title: "My Reviews", count: stats.reviews }
-                ].map((shelf, index) => (
-                  <div 
-                    key={index}
-                    className={`flex items-center p-4 rounded-lg cursor-pointer transition-colors ${
-                      darkMode 
-                        ? 'bg-slate-700 hover:bg-slate-600' 
-                        : 'bg-gray-50 hover:bg-gray-100'
-                    }`}
-                    onClick={() => navigate(`/shelf/${shelf.title.toLowerCase().replace(/\s+/g, '-')}`)}
-                  >
-                    <div className={`p-3 rounded-full mr-4 ${
-                      darkMode ? 'bg-slate-600' : 'bg-indigo-100'
-                    }`}>
-                      <span className={darkMode ? 'text-indigo-300' : 'text-indigo-600'}>
-                        {shelf.icon}
-                      </span>
-                    </div>
-                    <div>
-                      <h4 className={`font-medium ${
-                        darkMode ? 'text-white' : 'text-gray-900'
-                      }`}>{shelf.title}</h4>
-                      <p className={`text-sm ${
-                        darkMode ? 'text-slate-400' : 'text-gray-500'
-                      }`}>{shelf.count} books</p>
-                    </div>
-                  </div>
-                ))}
+                <h3 className={`text-lg font-medium ${
+                  darkMode ? 'text-white' : 'text-gray-900'
+                }`}>
+                  My Favorite Books
+                </h3>
               </div>
 
-              <div className="mb-8">
-                <h3 className={`text-lg font-medium mb-4 ${
-                  darkMode ? 'text-white' : 'text-gray-900'
-                }`}>Recent Activity</h3>
-                
-                <div className={`rounded-lg ${
-                  darkMode ? 'bg-slate-700' : 'bg-gray-50'
-                }`}>
-                  {[
-                    { action: "Finished reading", book: "The Silent Patient", date: "2 days ago", icon: <FiBook /> },
-                    { action: "Added to wishlist", book: "Atomic Habits", date: "1 week ago", icon: <FiHeart /> },
-                    { action: "Posted a review", book: "The Midnight Library", date: "2 weeks ago", icon: <FiEdit /> }
-                  ].map((activity, index) => (
-                    <div 
-                      key={index}
-                      className={`flex items-start p-4 ${
-                        index !== 2 ? (darkMode ? 'border-b border-slate-600' : 'border-b border-gray-200') : ''
+              <div className="p-6">
+                {favoritesLoading ? (
+                  <div className="flex justify-center py-10">
+                    <FiLoader className={`h-8 w-8 animate-spin ${
+                      darkMode ? 'text-indigo-400' : 'text-indigo-600'
+                    }`} />
+                  </div>
+                ) : favorites.length > 0 ? (
+                  <>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+                      {favorites.slice(0, 4).map((book, index) => (
+                        <div 
+                          key={index}
+                          className="group cursor-pointer"
+                          onClick={() => navigate(`/book/${book.id.replace('/works/', '')}`)}
+                        >
+                          <div className="aspect-[2/3] relative overflow-hidden rounded-lg mb-2 shadow-md transition-transform group-hover:scale-105">
+                            <img 
+                              src={book.coverImage}
+                              alt={`${book.title} cover`}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                target.onerror = null;
+                                target.src = coverPlaceholder;
+                              }}
+                            />
+                            <div className={`absolute inset-0 bg-gradient-to-t from-black/70 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-3`}>
+                              <div className="text-white text-sm font-medium">{book.title}</div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    
+                    {favorites.length > 4 && (
+                      <div className="text-center mt-4">
+                        <button
+                          onClick={() => navigate("/favorites")}
+                          className={`inline-flex items-center px-4 py-2 rounded-md text-sm ${
+                            darkMode 
+                              ? 'bg-slate-700 hover:bg-slate-600 text-white' 
+                              : 'bg-gray-100 hover:bg-gray-200 text-gray-800'
+                          }`}
+                        >
+                          View all {favorites.length} favorites
+                          <FiArrowRight className="ml-2" />
+                        </button>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className={`text-center py-10 ${
+                    darkMode ? 'text-slate-400' : 'text-gray-500'
+                  }`}>
+                    <FiHeart className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p className="mb-4">You haven't added any favorite books yet</p>
+                    <button
+                      onClick={() => navigate("/search")}
+                      className={`inline-flex items-center px-4 py-2 rounded-md ${
+                        darkMode 
+                          ? 'bg-indigo-700 hover:bg-indigo-800 text-white' 
+                          : 'bg-indigo-600 hover:bg-indigo-700 text-white'
                       }`}
                     >
-                      <div className={`p-2 rounded-full mr-4 ${
+                      <FiSearch className="mr-2" />
+                      Find Books to Add
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            {/* Recommendations Section */}
+            {(authorRecommendations.length > 0 || genreRecommendations.length > 0) && (
+              <div className={`rounded-xl shadow-lg overflow-hidden ${
+                darkMode ? 'bg-slate-800' : 'bg-white'
+              }`}>
+                <div className={`px-6 py-4 border-b ${
+                  darkMode ? 'border-slate-700' : 'border-gray-200'
+                }`}>
+                  <h3 className={`text-lg font-medium ${
+                    darkMode ? 'text-white' : 'text-gray-900'
+                  }`}>
+                    Personalized Recommendations
+                  </h3>
+                </div>
+
+                <div className="p-6">
+                  {recommendationsLoading ? (
+                    <div className="flex justify-center py-10">
+                      <FiLoader className={`h-8 w-8 animate-spin ${
+                        darkMode ? 'text-indigo-400' : 'text-indigo-600'
+                      }`} />
+                    </div>
+                  ) : (
+                    <div className="space-y-6">
+                      {/* Author Recommendations */}
+                      {authorRecommendations.length > 0 && (
+                        <div>
+                          <h4 className={`text-md font-medium mb-3 flex items-center ${
+                            darkMode ? 'text-white' : 'text-gray-800'
+                          }`}>
+                            <FiUser className="mr-2" />
+                            More by {favoriteAuthors[0]}
+                          </h4>
+                          
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                            {authorRecommendations.slice(0, 3).map((book, index) => (
+                              <Link 
+                                key={index}
+                                to={`/book/${book.id.replace('/works/', '')}`}
+                                className={`flex items-center p-2 rounded-lg group ${
+                                  darkMode 
+                                    ? 'hover:bg-slate-700' 
+                                    : 'hover:bg-gray-50'
+                                }`}
+                              >
+                                <div className="w-12 h-16 flex-shrink-0 rounded overflow-hidden shadow-sm mr-3">
+                                  <img 
+                                    src={book.coverImage}
+                                    alt={book.title}
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => {
+                                      const target = e.target as HTMLImageElement;
+                                      target.onerror = null;
+                                      target.src = coverPlaceholder;
+                                    }}
+                                  />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className={`text-sm font-medium truncate group-hover:text-indigo-500 ${
+                                    darkMode ? 'text-white' : 'text-gray-900'
+                                  }`}>
+                                    {book.title}
+                                  </p>
+                                  <p className={`text-xs truncate ${
+                                    darkMode ? 'text-slate-400' : 'text-gray-500'
+                                  }`}>
+                                    {book.author}
+                                  </p>
+                                </div>
+                              </Link>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Genre Recommendations */}
+                      {genreRecommendations.length > 0 && (
+                        <div>
+                          <h4 className={`text-md font-medium mb-3 flex items-center ${
+                            darkMode ? 'text-white' : 'text-gray-800'
+                          }`}>
+                            <FiBook className="mr-2" />
+                            More {favoriteGenres[0]} Books
+                          </h4>
+                          
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                            {genreRecommendations.slice(0, 3).map((book, index) => (
+                              <Link 
+                                key={index}
+                                to={`/book/${book.id.replace('/works/', '')}`}
+                                className={`flex items-center p-2 rounded-lg group ${
+                                  darkMode 
+                                    ? 'hover:bg-slate-700' 
+                                    : 'hover:bg-gray-50'
+                                }`}
+                              >
+                                <div className="w-12 h-16 flex-shrink-0 rounded overflow-hidden shadow-sm mr-3">
+                                  <img 
+                                    src={book.coverImage}
+                                    alt={book.title}
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => {
+                                      const target = e.target as HTMLImageElement;
+                                      target.onerror = null;
+                                      target.src = coverPlaceholder;
+                                    }}
+                                  />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className={`text-sm font-medium truncate group-hover:text-indigo-500 ${
+                                    darkMode ? 'text-white' : 'text-gray-900'
+                                  }`}>
+                                    {book.title}
+                                  </p>
+                                  <p className={`text-xs truncate ${
+                                    darkMode ? 'text-slate-400' : 'text-gray-500'
+                                  }`}>
+                                    {book.author}
+                                  </p>
+                                </div>
+                              </Link>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      <div className="text-center mt-2">
+                        <button
+                          onClick={() => navigate("/search")}
+                          className={`inline-flex items-center px-4 py-2 rounded-md ${
+                            darkMode 
+                              ? 'bg-indigo-700 hover:bg-indigo-800 text-white' 
+                              : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                          }`}
+                        >
+                          <FiBook className="mr-2" />
+                          Discover More Books
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+            
+            {/* Bookshelves & Activity */}
+            <div className={`rounded-xl shadow-lg overflow-hidden ${
+              darkMode ? 'bg-slate-800' : 'bg-white'
+            }`}>
+              <div className={`px-6 py-4 border-b ${
+                darkMode ? 'border-slate-700' : 'border-gray-200'
+              }`}>
+                <h3 className={`text-lg font-medium ${
+                  darkMode ? 'text-white' : 'text-gray-900'
+                }`}>
+                  My Reading Progress
+                </h3>
+              </div>
+
+              <div className="p-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+                  {[
+                    { icon: <FiRead className="h-5 w-5" />, title: "Currently Reading", count: stats.booksInProgress },
+                    { icon: <FiBook className="h-5 w-5" />, title: "Completed Books", count: stats.booksRead },
+                    { icon: <FiBookmark className="h-5 w-5" />, title: "Want to Read", count: stats.wishlist },
+                    { icon: <FiList className="h-5 w-5" />, title: "My Reviews", count: stats.reviews }
+                  ].map((shelf, index) => (
+                    <div 
+                      key={index}
+                      className={`flex items-center p-4 rounded-lg cursor-pointer transition-colors ${
+                        darkMode 
+                          ? 'bg-slate-700 hover:bg-slate-600' 
+                          : 'bg-gray-50 hover:bg-gray-100'
+                      }`}
+                      onClick={() => navigate(`/shelf/${shelf.title.toLowerCase().replace(/\s+/g, '-')}`)}
+                    >
+                      <div className={`p-3 rounded-full mr-4 ${
                         darkMode ? 'bg-slate-600' : 'bg-indigo-100'
                       }`}>
                         <span className={darkMode ? 'text-indigo-300' : 'text-indigo-600'}>
-                          {activity.icon}
+                          {shelf.icon}
                         </span>
                       </div>
                       <div>
-                        <p className={darkMode ? 'text-white' : 'text-gray-900'}>
-                          {activity.action} <span className="font-medium">"{activity.book}"</span>
-                        </p>
+                        <h4 className={`font-medium ${
+                          darkMode ? 'text-white' : 'text-gray-900'
+                        }`}>{shelf.title}</h4>
                         <p className={`text-sm ${
                           darkMode ? 'text-slate-400' : 'text-gray-500'
-                        }`}>{activity.date}</p>
+                        }`}>{shelf.count} books</p>
                       </div>
                     </div>
                   ))}
                 </div>
-              </div>
 
-              <div className="text-center">
-                <button
-                  onClick={() => navigate("/search")}
-                  className={`inline-flex items-center px-4 py-2 rounded-md ${
-                    darkMode 
-                      ? 'bg-indigo-700 hover:bg-indigo-800 text-white' 
-                      : 'bg-indigo-600 hover:bg-indigo-700 text-white'
-                  }`}
-                >
-                  <FiBook className="mr-2" />
-                  Discover New Books
-                </button>
+                <div className="mb-8">
+                  <h3 className={`text-lg font-medium mb-4 ${
+                    darkMode ? 'text-white' : 'text-gray-900'
+                  }`}>Recent Activity</h3>
+                  
+                  <div className={`rounded-lg ${
+                    darkMode ? 'bg-slate-700' : 'bg-gray-50'
+                  }`}>
+                    {[
+                      { action: "Finished reading", book: "The Silent Patient", date: "2 days ago", icon: <FiBook /> },
+                      { action: "Added to wishlist", book: "Atomic Habits", date: "1 week ago", icon: <FiHeart /> },
+                      { action: "Posted a review", book: "The Midnight Library", date: "2 weeks ago", icon: <FiEdit /> }
+                    ].map((activity, index) => (
+                      <div 
+                        key={index}
+                        className={`flex items-start p-4 ${
+                          index !== 2 ? (darkMode ? 'border-b border-slate-600' : 'border-b border-gray-200') : ''
+                        }`}
+                      >
+                        <div className={`p-2 rounded-full mr-4 ${
+                          darkMode ? 'bg-slate-600' : 'bg-indigo-100'
+                        }`}>
+                          <span className={darkMode ? 'text-indigo-300' : 'text-indigo-600'}>
+                            {activity.icon}
+                          </span>
+                        </div>
+                        <div>
+                          <p className={darkMode ? 'text-white' : 'text-gray-900'}>
+                            {activity.action} <span className="font-medium">"{activity.book}"</span>
+                          </p>
+                          <p className={`text-sm ${
+                            darkMode ? 'text-slate-400' : 'text-gray-500'
+                          }`}>{activity.date}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
           </motion.div>

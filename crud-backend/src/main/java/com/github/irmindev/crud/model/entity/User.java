@@ -1,6 +1,7 @@
 package com.github.irmindev.crud.model.entity;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
@@ -14,9 +15,13 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinTable;
+import jakarta.persistence.ManyToMany;
 import jakarta.persistence.Table;
 
 @Entity
@@ -42,7 +47,16 @@ public class User implements UserDetails {
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
+    @ManyToMany(fetch = FetchType.LAZY) // Use LAZY fetching for performance
+    @JoinTable(
+        name = "user_favorite_books", // Name of the join table
+        joinColumns = @JoinColumn(name = "user_id"), // Column for User ID in join table
+        inverseJoinColumns = @JoinColumn(name = "book_id") // Column for Book ID in join table
+    )
+    private List<Book> favoriteBooks;
+
     public User() {
+        this.favoriteBooks = new ArrayList<>();
         this.createdAt = LocalDateTime.now();
     }
 
@@ -52,6 +66,21 @@ public class User implements UserDetails {
         this.password = password;
         this.role = role;
         this.createdAt = LocalDateTime.now();
+        this.favoriteBooks = new ArrayList<>();
+    }
+
+    public void addFavoriteBook(Book book) {
+        if (this.favoriteBooks == null) {
+            this.favoriteBooks = new ArrayList<>();
+       }
+       
+       if (!this.favoriteBooks.contains(book)) {
+            this.favoriteBooks.add(book);
+       }
+    }
+    
+    public List<Book> getFavoriteBooks() {
+        return favoriteBooks;
     }
 
     public LocalDateTime getCreatedAt() {
